@@ -54,10 +54,16 @@ ollama pull gemma3:4b
 
 ## 🚀 설치 & 실행
 
-### 원클릭 실행 (권장)
+### 1. 다운로드
 
-**Windows:** `start.bat` 더블클릭
-**Mac:** 터미널에서 `./start.sh`
+👉 **[ZIP 다운로드](https://github.com/m2nh0926/livetts/archive/refs/heads/main.zip)**
+
+다운로드 후 압축을 풀어주세요. (git을 아신다면 `git clone`도 가능합니다)
+
+### 2. 실행
+
+**Windows:** 압축 푼 폴더에서 `start.bat` 더블클릭
+**Mac:** 터미널에서 압축 푼 폴더로 이동 후 `./start.sh`
 
 > 스크립트가 Python, ffmpeg, Ollama 설치 여부를 자동 확인하고, 미설치 항목을 자동 설치합니다.
 > Ollama 모델 다운로드, 서버 실행, 브라우저 오픈까지 전부 자동.
