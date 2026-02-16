@@ -54,6 +54,16 @@ ollama pull gemma3:4b
 
 ## 🚀 설치 & 실행
 
+### 원클릭 실행 (권장)
+
+**Windows:** `start.bat` 더블클릭
+**Mac:** 터미널에서 `./start.sh`
+
+> 스크립트가 Python, ffmpeg, Ollama 설치 여부를 자동 확인하고, 미설치 항목을 자동 설치합니다.
+> Ollama 모델 다운로드, 서버 실행, 브라우저 오픈까지 전부 자동.
+
+### 수동 실행
+
 ```bash
 # 1. 저장소 클론
 git clone https://github.com/m2nh0926/livetts.git
@@ -119,6 +129,8 @@ python server.py
 
 ```
 livetts/
+├── start.bat          # 원클릭 실행 (Windows)
+├── start.sh           # 원클릭 실행 (Mac/Linux)
 ├── server.py          # 메인 서버 (Whisper AI, WebSocket, Ollama API)
 ├── index.html         # 입력/제어 UI (YouTube + 탭 오디오)
 ├── viewer.html        # 실시간 자막 뷰어
