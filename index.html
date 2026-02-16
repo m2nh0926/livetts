@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiveSTT</title>
+<style>
+:root{--bg:#0a0a0f;--bg2:#12121a;--card:#1a1a28;--cardH:#222233;--ac:#7c6cf0;--ac2:#a29bfe;--acG:rgba(108,92,231,.3);--tx:#eeeef5;--tx2:#8888aa;--dim:#555577;--ok:#00cec9;--warn:#fdcb6e;--err:#ff6b6b;--red:#ff4757;--bdr:rgba(255,255,255,.06);--r:14px;--rs:10px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh}
+body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(ellipse at 20% 50%,rgba(108,92,231,.07) 0%,transparent 50%),radial-gradient(ellipse at 80% 20%,rgba(0,206,201,.04) 0%,transparent 50%);z-index:0;pointer-events:none}
+.app{position:relative;z-index:1;max-width:700px;margin:0 auto;padding:16px}
+
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 0 20px;border-bottom:1px solid var(--bdr);margin-bottom:20px}
+.hdr-l{display:flex;align-items:center;gap:12px}
+.logo{width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 4px 16px var(--acG)}
+.logo-t{font-weight:800;font-size:20px;background:linear-gradient(135deg,var(--tx),var(--ac2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.logo-s{font-size:10px;color:var(--dim);letter-spacing:1.5px;text-transform:uppercase}
+.badge{display:flex;align-items:center;gap:7px;padding:7px 14px;border-radius:50px;font-size:12px;font-weight:600;border:1px solid var(--bdr);background:var(--bg2);color:var(--dim);transition:all .3s}
+.badge.on{color:var(--ok);border-color:rgba(0,206,201,.3);background:rgba(0,206,201,.08)}
+.dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+.badge.on .dot{animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.4)}}
+
+.card{background:var(--card);border:1px solid var(--bdr);border-radius:var(--r);padding:16px;margin-bottom:12px}
+.card-t{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--dim);margin-bottom:14px;display:flex;align-items:center;gap:6px}
+
+/* 듀얼 모드 탭 */
+.tab-bar{display:flex;gap:4px;margin-bottom:14px}
+.tab-btn{flex:1;padding:10px 14px;border:1px solid var(--bdr);border-radius:var(--rs);background:var(--bg);color:var(--dim);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px}
+.tab-btn.active{background:rgba(108,92,231,.12);color:var(--ac2);border-color:rgba(108,92,231,.35)}
+.tab-btn:hover:not(.active){border-color:var(--dim);color:var(--tx2)}
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+.yt-row{display:flex;gap:8px}
+.yt-in{flex:1;padding:12px 14px;background:var(--bg);border:1px solid var(--bdr);border-radius:var(--rs);color:var(--tx);font-size:14px;font-family:inherit;outline:none;transition:border .2s}
+.yt-in:focus{border-color:var(--ac)}
+.yt-in::placeholder{color:var(--dim)}
+
+.btn{width:100%;padding:13px;border:none;border-radius:var(--rs);font-family:inherit;font-weight:700;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .2s}
+.btn-go{background:linear-gradient(135deg,var(--ac),#8b7cf8);color:white;margin-top:12px;box-shadow:0 4px 16px var(--acG)}
+.btn-go:hover{box-shadow:0 6px 24px rgba(108,92,231,.4)}
+.btn-go:disabled{opacity:.4;box-shadow:none;cursor:not-allowed}
+.btn-stop{background:rgba(255,107,107,.12);color:var(--err);border:1px solid rgba(255,107,107,.2);margin-top:8px}
+.btn-stop:disabled{opacity:.3;cursor:not-allowed}
+
+.desc{font-size:12px;color:var(--dim);line-height:1.6;padding:10px;background:var(--bg);border-radius:var(--rs);margin-top:12px}
+
+.wave{height:42px;background:var(--bg);border-radius:var(--rs);display:flex;align-items:center;justify-content:center;gap:3px;padding:0 12px;margin-bottom:12px}
+.wave .bar{width:3px;height:8px;background:var(--ac);border-radius:2px;opacity:.3}
+.wave.on .bar{animation:w .8s ease-in-out infinite;opacity:1}
+@keyframes w{0%,100%{height:8px;opacity:.3}50%{height:30px;opacity:1}}
+.wave.on .bar:nth-child(1){animation-delay:0s}.wave.on .bar:nth-child(2){animation-delay:.1s}.wave.on .bar:nth-child(3){animation-delay:.2s}.wave.on .bar:nth-child(4){animation-delay:.15s}.wave.on .bar:nth-child(5){animation-delay:.25s}.wave.on .bar:nth-child(6){animation-delay:.05s}.wave.on .bar:nth-child(7){animation-delay:.3s}.wave.on .bar:nth-child(8){animation-delay:.12s}.wave.on .bar:nth-child(9){animation-delay:.22s}.wave.on .bar:nth-child(10){animation-delay:.07s}.wave.on .bar:nth-child(11){animation-delay:.18s}.wave.on .bar:nth-child(12){animation-delay:.27s}
+
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.stat{background:var(--bg);border-radius:var(--rs);padding:12px;text-align:center}
+.stat-v{font-size:20px;font-weight:800;color:var(--ac2);font-variant-numeric:tabular-nums}
+.stat-l{font-size:10px;color:var(--dim);margin-top:4px}
+
+.tx-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.tx-acts{display:flex;gap:6px}
+.tx-acts button{padding:7px 12px;border:1px solid var(--bdr);border-radius:8px;background:var(--bg);color:var(--tx2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s}
+.tx-acts button:hover{border-color:var(--ac);color:var(--ac2)}
+.tx-box{min-height:30vh;max-height:50vh;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
+.tx-box::-webkit-scrollbar{width:5px}
+.tx-box::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:3px}
+.tx-line{display:flex;gap:10px;padding:10px 12px;border-radius:var(--rs);animation:fadeUp .3s}
+.tx-line:hover{background:var(--cardH)}
+.tx-line.status{opacity:.6}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.tx-time{font-size:10px;color:var(--dim);min-width:48px;padding-top:3px;font-variant-numeric:tabular-nums}
+.tx-lang{font-size:9px;padding:2px 6px;border-radius:4px;font-weight:700;min-width:24px;text-align:center;margin-top:3px}
+.tx-lang.ko{background:rgba(0,206,201,.15);color:var(--ok)}
+.tx-lang.en{background:rgba(253,203,110,.15);color:var(--warn)}
+.tx-text{font-size:14px;line-height:1.7;flex:1;word-break:keep-all}
+.tx-text.interim{color:var(--tx2);font-style:italic;opacity:.5}
+.tx-translated{font-size:13px;color:var(--ok);padding:4px 0 0 60px;opacity:.85;line-height:1.6}
+
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:25vh;gap:10px;color:var(--dim)}
+.empty-ic{font-size:48px;opacity:.3}
+.empty-t{font-size:16px;font-weight:600;color:var(--tx2)}
+.empty-d{font-size:12px;text-align:center;line-height:1.6;max-width:300px}
+
+.viewer-link{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--bg);border:1px dashed rgba(108,92,231,.3);border-radius:var(--rs);margin-top:12px;cursor:pointer;transition:all .2s}
+.viewer-link:hover{border-color:var(--ac);background:rgba(108,92,231,.05)}
+.viewer-link .icon{font-size:18px}
+.viewer-link .info{flex:1}
+.viewer-link .label{font-size:12px;font-weight:600;color:var(--ac2)}
+.viewer-link .url{font-size:11px;color:var(--dim);font-family:monospace}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(60px);background:var(--card);border:1px solid var(--bdr);color:var(--tx);padding:12px 20px;border-radius:12px;font-size:13px;font-weight:500;z-index:999;opacity:0;transition:all .3s;pointer-events:none;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+.tx-acts .btn-sum{background:rgba(108,92,231,.12);color:var(--ac2);border-color:rgba(108,92,231,.25)}
+
+/* 요약 모달 (Ollama 미팅 요약) */
+.sum-ov{position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(6px);z-index:900;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s}
+.sum-ov.open{opacity:1;pointer-events:auto}
+.sum-modal{background:var(--card);border:1px solid var(--bdr);border-radius:18px;width:640px;max-width:96vw;max-height:82vh;display:flex;flex-direction:column;transform:translateY(20px) scale(.97);transition:transform .35s cubic-bezier(.22,1,.36,1);box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.sum-ov.open .sum-modal{transform:translateY(0) scale(1)}
+.sum-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--bdr)}
+.sum-hdr h2{font-size:16px;font-weight:700}
+.sum-x{width:30px;height:30px;border-radius:8px;border:1px solid var(--bdr);background:var(--bg);color:var(--tx2);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.sum-body{padding:20px;overflow-y:auto;flex:1;line-height:1.8;font-size:14px}
+.sum-body h3{font-size:15px;font-weight:700;color:var(--ac2);margin:16px 0 8px}
+.sum-body h3:first-child{margin-top:0}
+.sum-body ul{margin:0 0 8px 16px}
+.sum-body li{margin-bottom:4px}
+.sum-body p{margin-bottom:8px}
+.sum-ft{padding:14px 20px;border-top:1px solid var(--bdr);display:flex;gap:8px;justify-content:flex-end}
+.sum-ft button{padding:10px 16px;border:1px solid var(--bdr);border-radius:var(--rs);background:var(--bg);color:var(--tx2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+.sum-loading{text-align:center;padding:40px 20px;color:var(--dim)}
+.sum-loading .spinner{width:32px;height:32px;border:3px solid var(--bdr);border-top-color:var(--ac);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sum-error{text-align:center;padding:30px 20px;color:var(--err);font-size:13px;line-height:1.6}
+.sum-empty{text-align:center;padding:30px 20px;color:var(--dim);font-size:13px;line-height:1.6}
+.sum-empty span{font-size:32px;display:block;margin-bottom:10px;opacity:.3}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hdr">
+    <div class="hdr-l">
+      <div class="logo">🎤</div>
+      <div><div class="logo-t">LiveSTT</div><div class="logo-s">Whisper AI + Web Speech</div></div>
+    </div>
+    <div class="badge" id="badge"><div class="dot"></div><span id="badgeTx">대기 중</span></div>
+  </div>
+
+  <!-- 입력 모드 카드: 듀얼 탭 -->
+  <div class="card">
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('yt')" id="tabYt">📺 YouTube</button>
+      <button class="tab-btn" onclick="switchTab('tab')" id="tabTab">🖥️ 탭 오디오 공유</button>
+    </div>
+
+    <!-- 탭1: YouTube 모드 -->
+    <div class="tab-content active" id="panelYt">
+      <div class="yt-row">
+        <input type="text" class="yt-in" id="urlInput" placeholder="YouTube 영상 또는 라이브 URL 붙여넣기...">
+      </div>
+      <button class="btn btn-go" id="ytGoBtn" onclick="startYT()">▶ 인식 시작</button>
+      <button class="btn btn-stop" id="ytStopBtn" onclick="stopYT()" disabled>⏹ 중지</button>
+      <div class="desc">💡 YouTube URL을 입력하면 서버가 직접 오디오를 추출하고 Whisper AI로 인식합니다. 마이크 불필요, 라이브/일반 영상 모두 지원.</div>
+    </div>
+
+    <!-- 탭2: 탭 오디오 + 마이크 스테레오 믹스 -->
+    <div class="tab-content" id="panelTab">
+      <button class="btn btn-go" id="tabGoBtn" onclick="startTabAudio()">🖥️ 탭 오디오 공유 시작</button>
+      <button class="btn btn-stop" id="tabStopBtn" onclick="stopTabAudio()" disabled>⏹ 중지</button>
+      <div class="desc">💡 브라우저 탭의 오디오와 마이크를 동시에 캡처(스테레오 믹스)하여 Whisper AI로 인식합니다.<br>Zoom, Google Meet 등 브라우저 탭에서 진행 중인 통화에 최적화.<br>⚠️ 공유 팝업에서 <b>"탭 오디오도 공유"</b> 체크를 꼭 확인하세요.</div>
+    </div>
+
+    <!-- 공통: 뷰어 링크 -->
+    <div class="viewer-link" onclick="window.open(location.origin+'/viewer.html','_blank')">
+      <div class="icon">📡</div>
+      <div class="info">
+        <div class="label">뷰어 페이지 열기 (별도 탭에서 자막만 보기)</div>
+        <div class="url" id="viewerUrl">-</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 파형 + 통계 -->
+  <div class="card">
+    <div class="wave" id="wave"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+    <div class="stats">
+      <div class="stat"><div class="stat-v" id="sL">0</div><div class="stat-l">문장</div></div>
+      <div class="stat"><div class="stat-v" id="sV">0</div><div class="stat-l">뷰어</div></div>
+    </div>
+  </div>
+
+  <!-- 실시간 자막 -->
+  <div class="card">
+    <div class="tx-hdr">
+      <div class="card-t" style="margin:0">📝 실시간 자막</div>
+      <div class="tx-acts">
+        <button class="btn-sum" onclick="openSum()">📊 요약</button>
+        <button onclick="copyTx()">📋 복사</button>
+        <button onclick="dlTx()">💾 저장</button>
+        <button onclick="clearTx()">🗑 초기화</button>
+      </div>
+    </div>
+    <div class="tx-box" id="txBox">
+      <div class="empty" id="emptyEl">
+        <div class="empty-ic">🎤</div>
+        <div class="empty-t">인식 모드를 선택하세요</div>
+        <div class="empty-d">YouTube URL 입력 또는 마이크 인식을 시작하면<br>실시간 자막이 여기에 표시됩니다.</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- 요약 모달 (Ollama 미팅 요약) -->
+<div class="sum-ov" id="sumOv" onclick="if(event.target===this)closeSum()">
+  <div class="sum-modal">
+    <div class="sum-hdr"><h2>📊 미팅 요약</h2><button class="sum-x" onclick="closeSum()">&times;</button></div>
+    <div class="sum-body" id="sumBody"></div>
+    <div class="sum-ft"><button onclick="copySum()">📋 요약 복사</button><button onclick="closeSum()">닫기</button></div>
+  </div>
+</div>
+
+<script>
+// ========================================
+// 전역 상태
+// ========================================
+var ws = null;              // 뷰어용 WebSocket (자막 수신)
+var audioSenderWs = null;   // 탭 오디오 sender WebSocket
+var tabRecorder = null;     // MediaRecorder 인스턴스
+var tabAudioCtx = null;     // AudioContext (스테레오 믹스용)
+var tabDisplayStream = null;// getDisplayMedia 스트림
+var tabMicStream = null;    // getUserMedia 마이크 스트림
+var nL = 0;
+var activeMode = null;      // 'yt' | 'tab' | null
+var sumCache = '';
+var interimEl = null;
+
+// ========================================
+// 초기화
+// ========================================
+(function init() {
+  document.getElementById('viewerUrl').textContent = location.origin + '/viewer.html';
+  // YouTube URL 입력창 엔터 키
+  document.getElementById('urlInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') startYT();
+  });
+  connectViewerWS();
+  setInterval(pollStatus, 5000);
+})();
+
+// ========================================
+// 탭 전환
+// ========================================
+function switchTab(tab) {
+  if (activeMode) {
+    toast('⚠️ 인식 중에는 탭을 전환할 수 없습니다. 먼저 중지하세요.');
+    return;
+  }
+  document.getElementById('tabYt').classList.toggle('active', tab === 'yt');
+  document.getElementById('tabTab').classList.toggle('active', tab === 'tab');
+  document.getElementById('panelYt').classList.toggle('active', tab === 'yt');
+  document.getElementById('panelTab').classList.toggle('active', tab === 'tab');
+}
+
+// ========================================
+// 뷰어 WebSocket (자막 수신용 — 두 모드 공통)
+// ========================================
+function connectViewerWS() {
+  var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(proto + '//' + location.host + '/ws?role=viewer');
+  ws.onmessage = function(ev) {
+    try {
+      var d = JSON.parse(ev.data);
+      addLine(d);
+    } catch(e) {}
+  };
+  ws.onclose = function() { setTimeout(connectViewerWS, 3000); };
+}
+
+// ========================================
+// 자막 한 줄 추가 (화면에 표시)
+// ========================================
+function addLine(d) {
+  var box = document.getElementById('txBox');
+  var em = document.getElementById('emptyEl');
+  if (em) em.style.display = 'none';
+
+  // 마이크 모드 중간 결과 처리
+  if (d.type === 'interim') {
+    if (!interimEl) {
+      interimEl = document.createElement('div');
+      interimEl.className = 'tx-line';
+      interimEl.innerHTML =
+        '<div class="tx-time">' + esc(d.time || '') + '</div>' +
+        '<div class="tx-lang ' + (d.lang || '') + '">' + (d.lang ? d.lang.toUpperCase() : '') + '</div>' +
+        '<div class="tx-text interim">' + esc(d.text || '') + '</div>';
+      box.appendChild(interimEl);
+    } else {
+      interimEl.querySelector('.tx-text').textContent = d.text || '';
+    }
+    box.scrollTop = box.scrollHeight;
+    return;
+  }
+
+  // 확정 결과 — 중간 결과 제거
+  if (interimEl) { interimEl.remove(); interimEl = null; }
+
+  var div = document.createElement('div');
+  div.className = 'tx-line' + (d.type === 'status' ? ' status' : '');
+  var langCls = (d.lang === 'ko') ? 'ko' : (d.lang === 'en' ? 'en' : '');
+  div.innerHTML =
+    '<div class="tx-time">' + esc(d.time || '') + '</div>' +
+    '<div class="tx-lang ' + langCls + '">' + (d.lang ? d.lang.toUpperCase() : '') + '</div>' +
+    '<div class="tx-text">' + esc(d.text || '') + '</div>';
+  if (d.translated) {
+    div.innerHTML += '<div class="tx-translated">🇰🇷 ' + esc(d.translated) + '</div>';
+  }
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+
+  if (d.type === 'final') {
+    nL++;
+    document.getElementById('sL').textContent = nL;
+  }
+}
+
+function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ========================================
+// 모드 1: YouTube (서버 Whisper AI)
+// ========================================
+async function startYT() {
+  var url = document.getElementById('urlInput').value.trim();
+  if (!url) { toast('YouTube URL을 입력하세요'); return; }
+  if (activeMode) { toast('⚠️ 이미 인식 중입니다'); return; }
+
+  document.getElementById('ytGoBtn').disabled = true;
+  document.getElementById('ytStopBtn').disabled = false;
+
+  try {
+    var resp = await fetch('/api/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: url }),
+    });
+    if (resp.ok) {
+      setRunning('yt');
+      toast('🎤 YouTube 인식 시작!');
+    } else {
+      var err = await resp.json();
+      toast('❌ ' + (err.error || '오류'));
+      document.getElementById('ytGoBtn').disabled = false;
+      document.getElementById('ytStopBtn').disabled = true;
+    }
+  } catch(e) {
+    toast('❌ 서버 연결 실패');
+    document.getElementById('ytGoBtn').disabled = false;
+    document.getElementById('ytStopBtn').disabled = true;
+  }
+}
+
+async function stopYT() {
+  try {
+    await fetch('/api/stop', { method: 'POST' });
+  } catch(e) {}
+  setRunning(null);
+  toast('⏹ YouTube 인식 중지됨');
+}
+
+// ========================================
+// 모드 2: 탭 오디오 + 마이크 스테레오 믹스 → 서버 Whisper
+// ========================================
+function getSupportedMimeType() {
+  var types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
+  for (var i = 0; i < types.length; i++) {
+    if (MediaRecorder.isTypeSupported(types[i])) return types[i];
+  }
+  return '';
+}
+
+async function startTabAudio() {
+  if (activeMode) { toast('⚠️ 이미 인식 중입니다'); return; }
+
+  // 1) 탭 오디오 캡처 (getDisplayMedia)
+  try {
+    tabDisplayStream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
+  } catch(e) {
+    toast('❌ 탭 공유가 취소되었습니다');
+    return;
+  }
+
+  // 비디오 트랙 제거 (오디오만 필요)
+  tabDisplayStream.getVideoTracks().forEach(function(t) { t.stop(); });
+
+  if (tabDisplayStream.getAudioTracks().length === 0) {
+    toast('❌ 오디오 없음 — 공유 팝업에서 "탭 오디오도 공유"를 체크하세요');
+    tabDisplayStream.getTracks().forEach(function(t) { t.stop(); });
+    tabDisplayStream = null;
+    return;
+  }
+
+  // 2) 마이크 캡처 (getUserMedia) — 실패해도 탭 오디오만으로 진행
+  try {
+    tabMicStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch(e) {
+    toast('⚠️ 마이크 권한 거부 — 탭 오디오만 인식합니다');
+    tabMicStream = null;
+  }
+
+  // 3) AudioContext로 스테레오 믹스
+  tabAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  var dest = tabAudioCtx.createMediaStreamDestination();
+
+  var tabSource = tabAudioCtx.createMediaStreamSource(tabDisplayStream);
+  tabSource.connect(dest);
+
+  if (tabMicStream) {
+    var micSource = tabAudioCtx.createMediaStreamSource(tabMicStream);
+    micSource.connect(dest);
+  }
+
+  var mixedStream = dest.stream;
+
+  // 4) 서버 WebSocket 연결 (audio_sender)
+  var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  audioSenderWs = new WebSocket(proto + '//' + location.host + '/ws?role=audio_sender');
+
+  audioSenderWs.onopen = function() {
+    setRunning('tab');
+    toast('🖥️ 탭 오디오' + (tabMicStream ? ' + 마이크' : '') + ' 인식 시작!');
+    startRecordingCycle(mixedStream);
+  };
+
+  audioSenderWs.onerror = function() {
+    toast('❌ 서버 WebSocket 연결 실패');
+    stopTabAudio();
+  };
+
+  audioSenderWs.onclose = function() {
+    if (activeMode === 'tab') {
+      stopTabAudio();
+      toast('⚠️ 서버 연결이 끊겼습니다');
+    }
+  };
+
+  // 탭 공유 중단 감지 (사용자가 "공유 중지" 클릭)
+  tabDisplayStream.getAudioTracks()[0].onended = function() {
+    stopTabAudio();
+    toast('⏹ 탭 오디오 공유가 종료되었습니다');
+  };
+
+  document.getElementById('tabGoBtn').disabled = true;
+  document.getElementById('tabStopBtn').disabled = false;
+}
+
+// 10초마다 녹음 → 서버 전송 사이클
+function startRecordingCycle(stream) {
+  if (activeMode !== 'tab') return;
+
+  var mimeType = getSupportedMimeType();
+  if (!mimeType) { toast('❌ 이 브라우저는 오디오 녹음을 지원하지 않습니다'); stopTabAudio(); return; }
+
+  tabRecorder = new MediaRecorder(stream, { mimeType: mimeType });
+  var chunks = [];
+
+  tabRecorder.ondataavailable = function(e) {
+    if (e.data.size > 0) chunks.push(e.data);
+  };
+
+  tabRecorder.onstop = function() {
+    // 녹음된 오디오를 바이너리로 서버에 전송
+    if (chunks.length > 0 && audioSenderWs && audioSenderWs.readyState === WebSocket.OPEN) {
+      var blob = new Blob(chunks, { type: mimeType });
+      blob.arrayBuffer().then(function(buf) {
+        audioSenderWs.send(buf);
+      });
+    }
+    // 다음 10초 사이클 시작
+    if (activeMode === 'tab') {
+      startRecordingCycle(stream);
+    }
+  };
+
+  tabRecorder.start();
+
+  setTimeout(function() {
+    if (tabRecorder && tabRecorder.state === 'recording') {
+      tabRecorder.stop();
+    }
+  }, 10000);
+}
+
+function stopTabAudio() {
+  if (tabRecorder && tabRecorder.state === 'recording') {
+    try { tabRecorder.stop(); } catch(e) {}
+  }
+  tabRecorder = null;
+
+  if (tabDisplayStream) {
+    tabDisplayStream.getTracks().forEach(function(t) { t.stop(); });
+    tabDisplayStream = null;
+  }
+  if (tabMicStream) {
+    tabMicStream.getTracks().forEach(function(t) { t.stop(); });
+    tabMicStream = null;
+  }
+  if (tabAudioCtx) {
+    try { tabAudioCtx.close(); } catch(e) {}
+    tabAudioCtx = null;
+  }
+  if (audioSenderWs) {
+    try { audioSenderWs.close(); } catch(e) {}
+    audioSenderWs = null;
+  }
+
+  setRunning(null);
+  document.getElementById('tabGoBtn').disabled = false;
+  document.getElementById('tabStopBtn').disabled = true;
+}
+
+// ========================================
+// 공통: 인식 상태 관리
+// ========================================
+function setRunning(mode) {
+  activeMode = mode;
+  var b = document.getElementById('badge'), bt = document.getElementById('badgeTx');
+  var w = document.getElementById('wave');
+
+  if (mode) {
+    b.className = 'badge on';
+    bt.textContent = mode === 'yt' ? 'YouTube 인식 중...' : '탭 오디오 인식 중...';
+    w.classList.add('on');
+  } else {
+    b.className = 'badge';
+    bt.textContent = '대기 중';
+    w.classList.remove('on');
+    document.getElementById('ytGoBtn').disabled = false;
+    document.getElementById('ytStopBtn').disabled = true;
+    document.getElementById('tabGoBtn').disabled = false;
+    document.getElementById('tabStopBtn').disabled = true;
+  }
+}
+
+// 서버 상태 폴링 (YouTube 모드 동기화)
+async function pollStatus() {
+  try {
+    var resp = await fetch('/api/status');
+    var d = await resp.json();
+    document.getElementById('sV').textContent = d.viewers || 0;
+    // YouTube 모드 상태 동기화
+    if (activeMode === 'yt' && !d.running) setRunning(null);
+    if (!activeMode && d.running) setRunning('yt');
+  } catch(e) {}
+}
+
+// ========================================
+// 자막 유틸리티 (복사, 저장, 초기화)
+// ========================================
+function getAllLines() {
+  var lines = document.querySelectorAll('.tx-line:not(.status)'), out = [];
+  lines.forEach(function(l) {
+    var t = l.querySelector('.tx-text');
+    var tm = l.querySelector('.tx-time');
+    if (t && !t.classList.contains('interim')) {
+      out.push({ time: tm ? tm.textContent : '', text: t.textContent.trim() });
+    }
+  });
+  return out;
+}
+
+function copyTx() {
+  var r = getAllLines();
+  if (!r.length) { toast('복사할 내용 없음'); return; }
+  var t = r.map(function(x) { return '[' + x.time + '] ' + x.text; }).join('\n');
+  navigator.clipboard.writeText(t).then(function() { toast('📋 복사 완료'); });
+}
+
+function dlTx() {
+  var r = getAllLines();
+  if (!r.length) { toast('저장할 내용 없음'); return; }
+  var t = 'LiveSTT\n' + new Date().toLocaleString('ko-KR') + '\n\n';
+  r.forEach(function(x) { t += '[' + x.time + '] ' + x.text + '\n'; });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([t], { type: 'text/plain;charset=utf-8' }));
+  a.download = 'livesst_' + new Date().toISOString().slice(0, 10) + '.txt';
+  a.click();
+  toast('💾 저장 완료');
+}
+
+function clearTx() {
+  document.getElementById('txBox').innerHTML = '<div class="empty" id="emptyEl"><div class="empty-ic">🎤</div><div class="empty-t">초기화 완료</div><div class="empty-d">인식 모드를 선택하세요</div></div>';
+  nL = 0;
+  document.getElementById('sL').textContent = 0;
+  if (interimEl) { interimEl = null; }
+  toast('🗑 초기화');
+}
+
+// ========================================
+// Ollama 미팅 요약
+// ========================================
+async function openSum() {
+  var bd = document.getElementById('sumBody');
+  var ov = document.getElementById('sumOv');
+  var rows = getAllLines();
+  var texts = rows.map(function(r) { return r.text; }).filter(function(t) { return t.length > 0; });
+
+  if (texts.length < 3) {
+    bd.innerHTML = '<div class="sum-empty"><span>📝</span>최소 3문장 이상 필요합니다<br><small>현재 ' + texts.length + '문장</small></div>';
+    ov.classList.add('open');
+    return;
+  }
+
+  // 로딩 상태 표시
+  bd.innerHTML = '<div class="sum-loading"><div class="spinner"></div>Ollama가 미팅 요약을 생성하고 있습니다...<br><small>잠시만 기다려주세요 (최대 90초)</small></div>';
+  ov.classList.add('open');
+
+  try {
+    var resp = await fetch('/api/summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lines: texts })
+    });
+    var data = await resp.json();
+
+    if (!resp.ok) {
+      bd.innerHTML = '<div class="sum-error">❌ ' + esc(data.error || '요약 생성 실패') + '</div>';
+      return;
+    }
+
+    sumCache = data.summary || '';
+    bd.innerHTML = renderMarkdown(sumCache);
+  } catch(e) {
+    bd.innerHTML = '<div class="sum-error">❌ 서버 연결 실패: ' + esc(e.message) + '</div>';
+  }
+}
+
+// 간단한 마크다운 → HTML 변환
+function renderMarkdown(text) {
+  var html = text
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/\n\n/g, '\n<br>\n');
+  // li 연속을 ul로 감싸기
+  html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+  html = html.replace(/\n/g, '');
+  return html;
+}
+
+function closeSum() { document.getElementById('sumOv').classList.remove('open'); }
+function copySum() {
+  if (!sumCache) { toast('복사할 요약 없음'); return; }
+  navigator.clipboard.writeText(sumCache).then(function() { toast('📋 요약 복사 완료'); });
+}
+
+// ========================================
+// 토스트 메시지
+// ========================================
+var tt;
+function toast(m) {
+  var e = document.getElementById('toast');
+  e.textContent = m; e.classList.add('show');
+  if (tt) clearTimeout(tt);
+  tt = setTimeout(function() { e.classList.remove('show'); }, 3000);
+}
+</script>
+</body>
+</html>

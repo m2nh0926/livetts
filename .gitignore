@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# 가상환경
+venv/
+.venv/
+env/
+
+# 환경변수 / 시크릿
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Whisper 모델 캐시 (자동 다운로드됨)
+# faster-whisper는 ~/.cache/huggingface/ 에 저장하므로 별도 제외 불필요
+
+# 임시 파일
+*.tmp
+*.bak

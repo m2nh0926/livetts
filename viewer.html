@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiveSTT - 실시간 자막</title>
+<style>
+:root {
+  --bg:#0a0a0f; --bg2:#12121a; --card:#1a1a28; --cardH:#222233;
+  --ac:#7c6cf0; --ac2:#a29bfe; --acG:rgba(108,92,231,0.3);
+  --tx:#eeeef5; --tx2:#8888aa; --dim:#555577;
+  --ok:#00cec9; --warn:#fdcb6e; --err:#ff6b6b;
+  --bdr:rgba(255,255,255,0.06); --r:14px; --rs:10px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Noto Sans KR',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;display:flex;flex-direction:column}
+body::before{content:'';position:fixed;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(ellipse at 20% 50%,rgba(108,92,231,0.05) 0%,transparent 50%),radial-gradient(ellipse at 80% 20%,rgba(0,206,201,0.03) 0%,transparent 50%);z-index:0;pointer-events:none}
+
+/* 상단 바 */
+.topbar{position:sticky;top:0;z-index:10;background:rgba(10,10,15,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--bdr);padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+.topbar-l{display:flex;align-items:center;gap:10px}
+.logo{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--ac),var(--ac2));display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 10px var(--acG)}
+.logo-t{font-weight:800;font-size:16px}
+.logo-s{font-size:9px;color:var(--dim);letter-spacing:1px;text-transform:uppercase}
+.topbar-r{display:flex;align-items:center;gap:12px}
+.badge{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:50px;font-size:11px;font-weight:600;border:1px solid var(--bdr);background:var(--bg2);color:var(--dim);transition:all .3s}
+.badge.on{color:var(--ok);border-color:rgba(0,206,201,0.3);background:rgba(0,206,201,0.08)}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.badge.on .dot{animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.4)}}
+.stat-mini{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+.stat-mini b{color:var(--ac2);font-weight:700}
+.topbar-actions{display:flex;gap:6px}
+.topbar-actions button{padding:6px 12px;border:1px solid var(--bdr);border-radius:8px;background:var(--bg2);color:var(--tx2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s}
+.topbar-actions button:hover{border-color:var(--ac);color:var(--ac2)}
+
+/* 설정 바 */
+.settings-bar{background:var(--bg2);border-bottom:1px solid var(--bdr);padding:8px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.setting{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim)}
+.setting label{cursor:pointer;user-select:none}
+.setting input[type="range"]{width:80px;accent-color:var(--ac)}
+.setting input[type="checkbox"]{accent-color:var(--ac)}
+.font-size-val{color:var(--ac2);font-weight:700;min-width:28px;text-align:center}
+
+/* 자막 영역 */
+.subtitle-area{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:4px;position:relative;z-index:1}
+.subtitle-area::-webkit-scrollbar{width:6px}
+.subtitle-area::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:3px}
+
+.line{display:flex;gap:12px;padding:10px 16px;border-radius:var(--rs);animation:fadeIn .35s ease;transition:background .2s}
+.line:hover{background:var(--cardH)}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.line-time{font-size:10px;color:var(--dim);min-width:60px;padding-top:4px;font-variant-numeric:tabular-nums;flex-shrink:0}
+.line-lang{font-size:9px;padding:2px 6px;border-radius:4px;font-weight:700;min-width:26px;text-align:center;flex-shrink:0;margin-top:4px}
+.line-lang.ko{background:rgba(0,206,201,0.15);color:var(--ok)}
+.line-lang.en{background:rgba(253,203,110,0.15);color:var(--warn)}
+.line-text{line-height:1.7;flex:1;word-break:keep-all}
+.line-text.interim{color:var(--tx2);font-style:italic;opacity:.5}
+.line-translated{font-size:13px;color:var(--ok);padding:4px 0 0 72px;opacity:.85;line-height:1.6}
+
+/* 빈 상태 */
+.empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--dim);min-height:60vh}
+.empty-state .icon{font-size:56px;opacity:.25;animation:float 3s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.empty-state .title{font-size:18px;font-weight:700;color:var(--tx2)}
+.empty-state .desc{font-size:13px;line-height:1.7;text-align:center;max-width:360px}
+.empty-state .hint{margin-top:8px;padding:10px 16px;border-radius:var(--rs);background:rgba(108,92,231,0.08);border:1px solid rgba(108,92,231,0.15);color:var(--ac2);font-size:12px}
+
+/* 최신 자막 하이라이트 */
+.line.latest{background:rgba(108,92,231,0.06);border-left:3px solid var(--ac)}
+
+/* 전체화면 모드 */
+body.fullscreen .topbar,
+body.fullscreen .settings-bar{display:none}
+body.fullscreen .subtitle-area{padding:40px}
+
+/* 토스트 */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(60px);background:var(--card);border:1px solid var(--bdr);color:var(--tx);padding:12px 20px;border-radius:12px;font-size:13px;font-weight:500;z-index:999;opacity:0;transition:all .3s;pointer-events:none;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* 요약 버튼 강조 */
+.btn-sum{background:rgba(108,92,231,.12)!important;color:var(--ac2)!important;border-color:rgba(108,92,231,.25)!important}
+
+/* 요약 모달 */
+.sum-ov{position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(6px);z-index:900;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s}
+.sum-ov.open{opacity:1;pointer-events:auto}
+.sum-modal{background:var(--card);border:1px solid var(--bdr);border-radius:18px;width:640px;max-width:96vw;max-height:82vh;display:flex;flex-direction:column;transform:translateY(20px) scale(.97);transition:transform .35s cubic-bezier(.22,1,.36,1);box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.sum-ov.open .sum-modal{transform:translateY(0) scale(1)}
+.sum-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--bdr)}
+.sum-hdr h2{font-size:16px;font-weight:700}
+.sum-x{width:30px;height:30px;border-radius:8px;border:1px solid var(--bdr);background:var(--bg);color:var(--tx2);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.sum-body{padding:20px;overflow-y:auto;flex:1;line-height:1.8;font-size:14px}
+.sum-body h3{font-size:15px;font-weight:700;color:var(--ac2);margin:16px 0 8px}
+.sum-body h3:first-child{margin-top:0}
+.sum-body ul{margin:0 0 8px 16px}
+.sum-body li{margin-bottom:4px}
+.sum-body p{margin-bottom:8px}
+.sum-ft{padding:14px 20px;border-top:1px solid var(--bdr);display:flex;gap:8px;justify-content:flex-end}
+.sum-ft button{padding:10px 16px;border:1px solid var(--bdr);border-radius:var(--rs);background:var(--bg);color:var(--tx2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+.sum-loading{text-align:center;padding:40px 20px;color:var(--dim)}
+.sum-loading .spinner{width:32px;height:32px;border:3px solid var(--bdr);border-top-color:var(--ac);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sum-error{text-align:center;padding:30px 20px;color:var(--err);font-size:13px;line-height:1.6}
+.sum-empty{text-align:center;padding:30px 20px;color:var(--dim);font-size:13px;line-height:1.6}
+.sum-empty span{font-size:32px;display:block;margin-bottom:10px;opacity:.3}
+</style>
+</head>
+<body>
+
+<!-- 상단 바 -->
+<div class="topbar">
+  <div class="topbar-l">
+    <div class="logo">📡</div>
+    <div><div class="logo-t">LiveSTT</div><div class="logo-s">실시간 자막 뷰어</div></div>
+  </div>
+  <div class="topbar-r">
+    <div class="badge" id="badge"><div class="dot"></div><span id="badgeTx">연결 중...</span></div>
+    <div class="stat-mini"><b id="lineCount">0</b> 문장</div>
+    <div class="topbar-actions">
+      <button class="btn-sum" onclick="openSummary()">📊 요약</button>
+      <button onclick="copyAll()">📋 복사</button>
+      <button onclick="toggleFullscreen()">⛶ 전체화면</button>
+      <button onclick="clearAll()">🗑 초기화</button>
+    </div>
+  </div>
+</div>
+
+<!-- 설정 바 -->
+<div class="settings-bar">
+  <div class="setting">
+    <span>글자 크기</span>
+    <input type="range" id="fontSize" min="12" max="36" value="16" oninput="setFontSize(this.value)">
+    <span class="font-size-val" id="fontSizeVal">16px</span>
+  </div>
+  <div class="setting">
+    <input type="checkbox" id="showTime" checked onchange="toggleTime()">
+    <label for="showTime">시간 표시</label>
+  </div>
+  <div class="setting">
+    <input type="checkbox" id="showInterim" checked onchange="toggleInterim()">
+    <label for="showInterim">중간 결과</label>
+  </div>
+  <div class="setting">
+    <input type="checkbox" id="autoScroll" checked>
+    <label for="autoScroll">자동 스크롤</label>
+  </div>
+</div>
+
+<!-- 자막 영역 -->
+<div class="subtitle-area" id="subtitleArea">
+  <div class="empty-state" id="emptyState">
+    <div class="icon">📡</div>
+    <div class="title">실시간 자막 대기 중</div>
+    <div class="desc">STT 페이지에서 음성 인식을 시작하면<br>여기에 자막이 실시간으로 표시됩니다.</div>
+    <div class="hint">💡 STT 페이지: <strong id="sttUrl">-</strong></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="sum-ov" id="sumOv" onclick="if(event.target===this)closeSummary()">
+  <div class="sum-modal">
+    <div class="sum-hdr"><h2>📊 미팅 요약</h2><button class="sum-x" onclick="closeSummary()">&times;</button></div>
+    <div class="sum-body" id="sumBody"></div>
+    <div class="sum-ft"><button onclick="copySummary()">📋 요약 복사</button><button onclick="closeSummary()">닫기</button></div>
+  </div>
+</div>
+
+<script>
+var ws = null;
+var lineCount = 0;
+var interimEl = null;
+var showTimeEnabled = true;
+var showInterimEnabled = true;
+var currentFontSize = 16;
+
+// ==========================================
+// 초기화
+// ==========================================
+(function init() {
+  document.getElementById('sttUrl').textContent = location.origin;
+  connectWS();
+})();
+
+// ==========================================
+// WebSocket 연결 (서버에서 자막 수신)
+// ==========================================
+function connectWS() {
+  var protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(protocol + '//' + location.host + '/ws?role=viewer');
+
+  ws.onopen = function() {
+    var b = document.getElementById('badge');
+    b.className = 'badge on';
+    document.getElementById('badgeTx').textContent = '연결됨';
+    toast('📡 서버 연결 완료 - 자막 수신 대기 중');
+  };
+
+  ws.onmessage = function(ev) {
+    try {
+      var data = JSON.parse(ev.data);
+      handleMessage(data);
+    } catch(e) {}
+  };
+
+  ws.onclose = function() {
+    var b = document.getElementById('badge');
+    b.className = 'badge';
+    document.getElementById('badgeTx').textContent = '연결 끊김';
+    setTimeout(connectWS, 3000);
+  };
+
+  ws.onerror = function() {};
+}
+
+// ==========================================
+// 수신된 자막 처리
+// ==========================================
+function handleMessage(data) {
+  var area = document.getElementById('subtitleArea');
+  var empty = document.getElementById('emptyState');
+  if (empty) empty.style.display = 'none';
+
+  if (data.type === 'final') {
+    // 중간 결과 제거
+    if (interimEl) { interimEl.remove(); interimEl = null; }
+
+    // 이전 최신 하이라이트 제거
+    var prev = area.querySelector('.line.latest');
+    if (prev) prev.classList.remove('latest');
+
+    var el = createLine(data.text, data.time, data.lang, false);
+    if (data.translated) {
+      el.innerHTML += '<div class="line-translated">🇰🇷 ' + esc(data.translated) + '</div>';
+    }
+    el.classList.add('latest');
+    area.appendChild(el);
+    lineCount++;
+    document.getElementById('lineCount').textContent = lineCount;
+
+    if (document.getElementById('autoScroll').checked) {
+      area.scrollTop = area.scrollHeight;
+    }
+  } else if (data.type === 'interim' && showInterimEnabled) {
+    // 중간 결과 (실시간 타이핑 느낌)
+    if (!interimEl) {
+      interimEl = createLine(data.text, data.time, data.lang, true);
+      area.appendChild(interimEl);
+    } else {
+      interimEl.querySelector('.line-text').textContent = data.text;
+    }
+
+    if (document.getElementById('autoScroll').checked) {
+      area.scrollTop = area.scrollHeight;
+    }
+  }
+}
+
+function createLine(text, time, lang, interim) {
+  var div = document.createElement('div');
+  div.className = 'line';
+
+  var timeHtml = '<div class="line-time"' + (showTimeEnabled ? '' : ' style="display:none"') + '>' + esc(time || '') + '</div>';
+  var langHtml = '<div class="line-lang ' + (lang || '') + '">' + (lang ? lang.toUpperCase() : '') + '</div>';
+  var textHtml = '<div class="line-text' + (interim ? ' interim' : '') + '" style="font-size:' + currentFontSize + 'px">' + esc(text) + '</div>';
+
+  div.innerHTML = timeHtml + langHtml + textHtml;
+  return div;
+}
+
+function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ==========================================
+// 설정 컨트롤
+// ==========================================
+function setFontSize(val) {
+  currentFontSize = parseInt(val);
+  document.getElementById('fontSizeVal').textContent = val + 'px';
+  document.querySelectorAll('.line-text').forEach(function(el) {
+    el.style.fontSize = val + 'px';
+  });
+}
+
+function toggleTime() {
+  showTimeEnabled = document.getElementById('showTime').checked;
+  document.querySelectorAll('.line-time').forEach(function(el) {
+    el.style.display = showTimeEnabled ? '' : 'none';
+  });
+}
+
+function toggleInterim() {
+  showInterimEnabled = document.getElementById('showInterim').checked;
+  if (!showInterimEnabled && interimEl) {
+    interimEl.remove();
+    interimEl = null;
+  }
+}
+
+function toggleFullscreen() {
+  document.body.classList.toggle('fullscreen');
+}
+
+// ==========================================
+// 액션
+// ==========================================
+function copyAll() {
+  var lines = document.querySelectorAll('.line');
+  if (!lines.length) { toast('복사할 내용 없음'); return; }
+  var texts = [];
+  lines.forEach(function(l) {
+    var t = l.querySelector('.line-text');
+    if (t && !t.classList.contains('interim')) {
+      var time = l.querySelector('.line-time');
+      texts.push((time ? '[' + time.textContent + '] ' : '') + t.textContent.trim());
+    }
+  });
+  navigator.clipboard.writeText(texts.join('\n'))
+    .then(function() { toast('📋 복사 완료 (' + texts.length + '문장)'); })
+    .catch(function() { toast('❌ 복사 실패'); });
+}
+
+function clearAll() {
+  var area = document.getElementById('subtitleArea');
+  area.innerHTML = '<div class="empty-state" id="emptyState"><div class="icon">📡</div><div class="title">초기화 완료</div><div class="desc">자막 수신 대기 중...</div></div>';
+  interimEl = null;
+  lineCount = 0;
+  document.getElementById('lineCount').textContent = '0';
+  toast('🗑 초기화 완료');
+}
+
+// ==========================================
+// Ollama 미팅 요약
+// ==========================================
+var sumCache = '';
+
+function getAllTexts() {
+  var lines = document.querySelectorAll('.line');
+  var texts = [];
+  lines.forEach(function(l) {
+    var t = l.querySelector('.line-text');
+    if (t && !t.classList.contains('interim')) {
+      texts.push(t.textContent.trim());
+    }
+  });
+  return texts.filter(function(t) { return t.length > 0; });
+}
+
+async function openSummary() {
+  var bd = document.getElementById('sumBody');
+  var ov = document.getElementById('sumOv');
+  var texts = getAllTexts();
+
+  if (texts.length < 3) {
+    bd.innerHTML = '<div class="sum-empty"><span>📝</span>최소 3문장 이상 필요<br><small>현재 ' + texts.length + '문장</small></div>';
+    ov.classList.add('open');
+    return;
+  }
+
+  bd.innerHTML = '<div class="sum-loading"><div class="spinner"></div>Ollama가 미팅 요약을 생성하고 있습니다...<br><small>잠시만 기다려주세요 (최대 90초)</small></div>';
+  ov.classList.add('open');
+
+  try {
+    var resp = await fetch('/api/summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lines: texts })
+    });
+    var data = await resp.json();
+
+    if (!resp.ok) {
+      bd.innerHTML = '<div class="sum-error">❌ ' + esc(data.error || '요약 생성 실패') + '</div>';
+      return;
+    }
+
+    sumCache = data.summary || '';
+    bd.innerHTML = renderMarkdown(sumCache);
+  } catch(e) {
+    bd.innerHTML = '<div class="sum-error">❌ 서버 연결 실패: ' + esc(e.message) + '</div>';
+  }
+}
+
+function renderMarkdown(text) {
+  var html = text
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/\n\n/g, '\n<br>\n');
+  html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+  html = html.replace(/\n/g, '');
+  return html;
+}
+
+function closeSummary() { document.getElementById('sumOv').classList.remove('open'); }
+function copySummary() {
+  if (!sumCache) { toast('복사할 요약 없음'); return; }
+  navigator.clipboard.writeText(sumCache).then(function() { toast('📋 요약 복사 완료'); });
+}
+
+// Toast
+var tt = null;
+function toast(m) {
+  var e = document.getElementById('toast');
+  e.textContent = m; e.classList.add('show');
+  if (tt) clearTimeout(tt);
+  tt = setTimeout(function() { e.classList.remove('show'); }, 3000);
+}
+</script>
+</body>
+</html>
